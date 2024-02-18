@@ -33,7 +33,7 @@ func run() {
 	println("advertising...")
 	address, _ := adapter.Address()
 	for i := 1; i < 60; i++ {
-		println(LOCAL_NAME+HASHED, "/", address.MAC.String())
+		println(LOCAL_NAME, "/", address.MAC.String())
 		time.Sleep(time.Second)
 	}
 	must("stop adv", adv.Stop())
