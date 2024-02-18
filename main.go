@@ -13,7 +13,7 @@ var HASHED string
 
 func main() {
 	LOCAL_NAME = common.GetEnv("LOCAL_NAME")
-	HASHED = common.SetHash(common.GetEnv("BEACON_ID"))
+	HASHED = strconv.FormatUint(common.SetHash(common.GetEnv("BEACON_ID")), 10)
 	for {
 		run()
 		time.Sleep(1 * time.Minute)
@@ -25,7 +25,7 @@ func run() {
 	adv := adapter.DefaultAdvertisement()
 
 	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{
-		LocalName: LOCAL_NAME + HASHED,
+		LocalName: LOCAL_NAME + ,
 	}))
 	must("start adv", adv.Start())
 

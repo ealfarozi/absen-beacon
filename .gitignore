@@ -19,6 +19,8 @@ vendor/
 /vendor
 .env
 .env.prod
+go.mod
+go.sum
 private_key.txt
 .vscode
 *.crt
