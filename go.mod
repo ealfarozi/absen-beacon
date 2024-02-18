@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/cloudflare/circl v1.3.7
+	github.com/segmentio/fasthash v1.0.3
 	github.com/spf13/viper v1.18.2
 	tinygo.org/x/bluetooth v0.8.0
 )

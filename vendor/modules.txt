@@ -84,6 +84,9 @@ github.com/saltosystems/winrt-go/windows/devices/bluetooth/genericattributeprofi
 github.com/saltosystems/winrt-go/windows/foundation
 github.com/saltosystems/winrt-go/windows/foundation/collections
 github.com/saltosystems/winrt-go/windows/storage/streams
+# github.com/segmentio/fasthash v1.0.3
+## explicit; go 1.11
+github.com/segmentio/fasthash/fnv1a
 # github.com/sirupsen/logrus v1.9.3
 ## explicit; go 1.13
 github.com/sirupsen/logrus
