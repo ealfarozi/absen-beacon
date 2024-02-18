@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/ealfarozi/absen-beacon/common"
@@ -25,7 +26,7 @@ func run() {
 	adv := adapter.DefaultAdvertisement()
 
 	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{
-		LocalName: LOCAL_NAME + ,
+		LocalName: LOCAL_NAME + HASHED,
 	}))
 	must("start adv", adv.Start())
 
