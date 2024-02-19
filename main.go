@@ -12,7 +12,7 @@ var adapter = bluetooth.DefaultAdapter
 func main() {
 	for {
 		run()
-		time.Sleep(1 * time.Minute)
+		//time.Sleep(1 * time.Minute)
 	}
 
 }
