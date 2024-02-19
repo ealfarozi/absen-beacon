@@ -30,7 +30,7 @@ func run() {
 	println("advertising...")
 
 	address, _ := adapter.Address()
-	for i := 1; i < common.REFRESH_INTERVAL; i++ {
+	for i := 1; i < 60; i++ {
 		println(common.LOCAL_NAME+common.HASHED, "/", address.MAC.String())
 
 		time.Sleep(time.Second)
