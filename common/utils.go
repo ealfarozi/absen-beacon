@@ -37,7 +37,7 @@ func GetEnv(key string) string {
 
 func SetHash(str string) uint64 {
 	h1 := fnv1a.HashString64(str)
-	fmt.Println("FNV-1a hash of ", str, ":", h1)
+	fmt.Println("Setup hash", str, ":", h1)
 	return h1
 }
 
