@@ -3,7 +3,7 @@ module github.com/ealfarozi/absen-beacon
 go 1.20
 
 require (
-	github.com/cloudflare/circl v1.3.7
+	github.com/google/uuid v1.6.0
 	github.com/segmentio/fasthash v1.0.3
 	github.com/spf13/viper v1.18.2
 	tinygo.org/x/bluetooth v0.8.0
@@ -31,7 +31,6 @@ require (
 	github.com/tinygo-org/cbgo v0.0.4 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
-	golang.org/x/crypto v0.17.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect

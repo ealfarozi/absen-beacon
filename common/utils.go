@@ -5,6 +5,7 @@ import (
 	"log"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/spf13/viper"
 )
@@ -44,7 +45,12 @@ func SetHash(str string) uint64 {
 
 func GetVars() {
 	LOCAL_NAME = GetEnv("LOCAL_NAME")
-	HASHED = strconv.FormatUint(SetHash(GetEnv("BEACON_ID")), 10)
+	HASHED = strconv.FormatUint(SetHash(GetEnv("BEACON_ID")+":"+GetUUID()), 10)
 	rim, _ := strconv.Atoi(GetEnv("REFRESH_INTERVAL_MIN"))
 	REFRESH_INTERVAL = rim
+}
+
+func GetUUID() string {
+	id := uuid.New()
+	return id.String()
 }

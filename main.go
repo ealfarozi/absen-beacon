@@ -13,7 +13,6 @@ func main() {
 	common.GetVars()
 	for {
 		run()
-		//time.Sleep(time.Minute)
 	}
 
 }
@@ -28,7 +27,7 @@ func run() {
 	}))
 	must("start adv", adv.Start())
 
-	println("advertising...")
+	println("start advertising...")
 
 	address, _ := adapter.Address()
 	for i := 1; i < common.REFRESH_INTERVAL; i++ {
@@ -37,6 +36,7 @@ func run() {
 		time.Sleep(time.Second)
 	}
 	must("stop adv", adv.Stop())
+	println("stop advertising...")
 }
 
 func must(action string, err error) {
