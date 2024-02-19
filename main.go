@@ -19,7 +19,7 @@ func main() {
 
 func run() {
 	must("enable BLE stack", adapter.Enable())
-
+	common.GetHash()
 	adv := adapter.DefaultAdvertisement()
 
 	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{

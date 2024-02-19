@@ -38,14 +38,15 @@ func GetEnv(key string) string {
 func SetHash(str string) uint64 {
 	h1 := fnv1a.HashString64(str)
 	fmt.Println("FNV-1a hash of ", str, ":", h1)
-
-	// Incrementally compute a hash value from a sequence of strings.
 	return h1
+}
+
+func GetHash() {
+	HASHED = strconv.FormatUint(SetHash(GetEnv("BEACON_ID")+":"+GetUUID()), 10)
 }
 
 func GetVars() {
 	LOCAL_NAME = GetEnv("LOCAL_NAME")
-	HASHED = strconv.FormatUint(SetHash(GetEnv("BEACON_ID")+":"+GetUUID()), 10)
 	rim, _ := strconv.Atoi(GetEnv("REFRESH_INTERVAL_MIN"))
 	REFRESH_INTERVAL = rim
 }
