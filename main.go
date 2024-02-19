@@ -10,9 +10,10 @@ import (
 var adapter = bluetooth.DefaultAdapter
 
 func main() {
+	common.GetVars()
 	for {
 		run()
-		time.Sleep(time.Minute)
+		//time.Sleep(time.Minute)
 	}
 
 }
@@ -30,7 +31,7 @@ func run() {
 	println("advertising...")
 
 	address, _ := adapter.Address()
-	for i := 1; i < 60; i++ {
+	for i := 1; i < common.REFRESH_INTERVAL; i++ {
 		println(common.LOCAL_NAME+common.HASHED, "/", address.MAC.String())
 
 		time.Sleep(time.Second)
