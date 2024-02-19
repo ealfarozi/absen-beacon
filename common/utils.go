@@ -3,10 +3,15 @@ package common
 import (
 	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/spf13/viper"
 )
+
+var LOCAL_NAME string
+var HASHED string
+var REFRESH_INTERVAL int
 
 // ViperEnvVariable is func to get .env file
 func GetEnv(key string) string {
@@ -35,4 +40,11 @@ func SetHash(str string) uint64 {
 
 	// Incrementally compute a hash value from a sequence of strings.
 	return h1
+}
+
+func GetVars() {
+	LOCAL_NAME = GetEnv("LOCAL_NAME")
+	HASHED = strconv.FormatUint(SetHash(GetEnv("BEACON_ID")), 10)
+	rim, _ := strconv.Atoi(GetEnv("REFRESH_INTERVAL_MIN"))
+	REFRESH_INTERVAL = rim
 }
