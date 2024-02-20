@@ -35,13 +35,12 @@ func run() {
 			println(common.LOCAL_NAME+common.HASHED, "/", address.MAC.String())
 
 			time.Sleep(time.Second)
+			must("stop adv", adv.Stop())
+			println("stop advertising...")
 		}
 	} else {
 		println(common.LOCAL_NAME+common.HASHED, "/", address.MAC.String())
 	}
-
-	must("stop adv", adv.Stop())
-	println("stop advertising...")
 }
 
 func must(action string, err error) {
