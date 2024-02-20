@@ -13,6 +13,7 @@ import (
 var LOCAL_NAME string
 var HASHED string
 var REFRESH_INTERVAL int
+var IS_STATIC string
 
 // ViperEnvVariable is func to get .env file
 func GetEnv(key string) string {
@@ -49,6 +50,7 @@ func GetVars() {
 	LOCAL_NAME = GetEnv("LOCAL_NAME")
 	rim, _ := strconv.Atoi(GetEnv("REFRESH_INTERVAL_MIN"))
 	REFRESH_INTERVAL = rim
+	IS_STATIC = GetEnv("IS_STATIC")
 }
 
 func GetUUID() string {

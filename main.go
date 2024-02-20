@@ -30,11 +30,16 @@ func run() {
 	println("start advertising...")
 
 	address, _ := adapter.Address()
-	for i := 1; i < common.REFRESH_INTERVAL; i++ {
-		println(common.LOCAL_NAME+common.HASHED, "/", address.MAC.String())
+	if common.IS_STATIC == "0" {
+		for i := 1; i < common.REFRESH_INTERVAL; i++ {
+			println(common.LOCAL_NAME+common.HASHED, "/", address.MAC.String())
 
-		time.Sleep(time.Second)
+			time.Sleep(time.Second)
+		}
+	} else {
+		println(common.LOCAL_NAME+common.HASHED, "/", address.MAC.String())
 	}
+
 	must("stop adv", adv.Stop())
 	println("stop advertising...")
 }
