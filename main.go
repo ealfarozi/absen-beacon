@@ -35,7 +35,7 @@ func run() {
 
 	address, _ := adapter.Address()
 	for i := 1; i < common.REFRESH_INTERVAL; i++ {
-		println(common.LOCAL_NAME+common.UUID+"|"+common.HASHED, "|", address.MAC.String())
+		println(common.LOCAL_NAME+"|"+common.UUID+"|"+common.HASHED, "/", address.MAC.String())
 
 		time.Sleep(time.Second)
 	}
