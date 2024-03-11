@@ -1,9 +1,14 @@
 package common
 
 import (
+	"bytes"
+	"crypto/tls"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/segmentio/fasthash/fnv1a"
@@ -14,6 +19,24 @@ var LOCAL_NAME string
 var HASHED string
 var REFRESH_INTERVAL int
 var IS_STATIC string
+
+type BeaconRequest struct {
+	TrxID      int    `json:"trx_id,omitempty"`
+	Code       int    `json:"code,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Data       string `json:"data,omitempty"`
+	SysMessage string `json:"system_message,omitempty"`
+	Request    interface{}
+}
+
+type BeaconResponse struct {
+	TrxID      int    `json:"trx_id,omitempty"`
+	Code       int    `json:"code,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Data       string `json:"data,omitempty"`
+	SysMessage string `json:"system_message,omitempty"`
+	Request    interface{}
+}
 
 // ViperEnvVariable is func to get .env file
 func GetEnv(key string) string {
@@ -48,7 +71,7 @@ func GetHash() {
 
 func GetVars() {
 	LOCAL_NAME = GetEnv("LOCAL_NAME")
-	rim, _ := strconv.Atoi(GetEnv("REFRESH_INTERVAL_MIN"))
+	rim, _ := strconv.Atoi(GetEnv("REFRESH_INTERVAL_SEC"))
 	REFRESH_INTERVAL = rim
 	IS_STATIC = GetEnv("IS_STATIC")
 }
@@ -56,4 +79,39 @@ func GetVars() {
 func GetUUID() string {
 	id := uuid.New()
 	return id.String()
+}
+
+func HitAPI(url string, jsonStr []byte, method string, strToken string, timeout time.Duration) (*http.Request, *http.Response, []byte, error) {
+	req, err := http.NewRequest(method, url, bytes.NewReader([]byte(jsonStr)))
+
+	if err != nil {
+		fmt.Println("error when hit URL:", url, "- err:", err.Error())
+	} else {
+		req.Close = true
+		req.Header.Add("Content-Type", "application/json")
+	}
+
+	if strToken != "" {
+		req.Header.Add("Authorization", strToken)
+	}
+
+	tr := &http.Transport{
+		MaxIdleConns:        50,
+		MaxIdleConnsPerHost: 500,
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+	}
+
+	client := &http.Client{Transport: tr, Timeout: timeout * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		time.Sleep(time.Second * timeout)
+		fmt.Println("error when hit URL:", url, "- err:", err.Error())
+
+		return req, resp, nil, err
+	}
+
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	return req, resp, body, nil
 }
