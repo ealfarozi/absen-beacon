@@ -27,7 +27,7 @@ func run() {
 	adv := adapter.DefaultAdvertisement()
 
 	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{
-		LocalName: common.LOCAL_NAME + common.HASHED,
+		LocalName: common.LOCAL_NAME + common.UUID + "-" + common.HASHED,
 	}))
 	must("start adv", adv.Start())
 
@@ -35,7 +35,7 @@ func run() {
 
 	address, _ := adapter.Address()
 	for i := 1; i < common.REFRESH_INTERVAL; i++ {
-		println(common.LOCAL_NAME+common.HASHED, "/", address.MAC.String())
+		println(common.LOCAL_NAME+common.UUID+"-"+common.HASHED, "/", address.MAC.String())
 
 		time.Sleep(time.Second)
 	}
@@ -67,3 +67,7 @@ func must(action string, err error) {
 		panic("failed to " + action + ": " + err.Error())
 	}
 }
+
+// func hitBeaconAPI(data string) bool {
+
+// }

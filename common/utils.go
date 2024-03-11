@@ -19,9 +19,10 @@ var LOCAL_NAME string
 var HASHED string
 var REFRESH_INTERVAL int
 var IS_STATIC string
+var UUID string
 
-type BeaconRequest struct {
-	TrxID      int    `json:"trx_id,omitempty"`
+type LoginRequest struct {
+	NIK        int    `json:"trx_id,omitempty"`
 	Code       int    `json:"code,omitempty"`
 	Message    string `json:"message,omitempty"`
 	Data       string `json:"data,omitempty"`
@@ -29,13 +30,19 @@ type BeaconRequest struct {
 	Request    interface{}
 }
 
-type BeaconResponse struct {
-	TrxID      int    `json:"trx_id,omitempty"`
-	Code       int    `json:"code,omitempty"`
-	Message    string `json:"message,omitempty"`
+type BeaconRequest struct {
+	BeaconID   string `json:"beacon_id,omitempty"`
+	StartTime  string `json:"start_time,omitempty"`
+	EndTime    string `json:"end_time,omitempty"`
+	ExpTimeMin int    `json:"expire_time_min,omitempty"`
 	Data       string `json:"data,omitempty"`
-	SysMessage string `json:"system_message,omitempty"`
-	Request    interface{}
+}
+
+type BeaconResponse struct {
+	Success bool   `json:"success,omitempty"`
+	Code    int    `json:"code,omitempty"`
+	Data    string `json:"data,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 // ViperEnvVariable is func to get .env file
@@ -66,7 +73,7 @@ func SetHash(str string) uint64 {
 }
 
 func GetHash() {
-	HASHED = strconv.FormatUint(SetHash(GetEnv("BEACON_ID")+":"+GetUUID()), 10)
+	HASHED = strconv.FormatUint(SetHash(UUID+":"+GetUUID()), 10)
 }
 
 func GetVars() {
@@ -74,6 +81,7 @@ func GetVars() {
 	rim, _ := strconv.Atoi(GetEnv("REFRESH_INTERVAL_SEC"))
 	REFRESH_INTERVAL = rim
 	IS_STATIC = GetEnv("IS_STATIC")
+	UUID = GetEnv("BEACON_ID")
 }
 
 func GetUUID() string {
