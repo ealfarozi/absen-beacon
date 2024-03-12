@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/spf13/viper"
 )
@@ -85,7 +84,10 @@ func GetVars() {
 }
 
 func GetUUID() string {
-	id := uuid.New()
+	s, _ := sqids.New()
+	id, _ := s.Encode([]uint64{1, 2, 3}) // "86Rf07"
+
+	//id := uuid.New()
 	return id.String()
 }
 
