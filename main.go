@@ -90,7 +90,7 @@ func hitBeaconAPI(data string) bool {
 	b.BeaconID = common.UUID
 	loc, _ := time.LoadLocation("Asia/Jakarta")
 	startTime := time.Now().In(loc)
-	endTime := startTime.Add(time.Second * common.REFRESH_INTERVAL)
+	endTime := startTime.Add(time.Second * time.Duration(common.REFRESH_INTERVAL))
 	b.StartTime = startTime.Format("2006-01-02 15:04:05")
 	b.EndTime = endTime.Format("2006-01-02 15:04:05")
 	b.ExpTimeMin = common.REFRESH_INTERVAL / 60
