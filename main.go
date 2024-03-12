@@ -27,10 +27,8 @@ func run() {
 	must("enable BLE stack", adapter.Enable())
 	common.GetHash()
 
-	bl := hitBeaconAPI(common.HASHED)
-	if !bl {
-		break
-	}
+	//musti bikin retry
+	_ := hitBeaconAPI(common.HASHED)
 
 	adv := adapter.DefaultAdvertisement()
 
@@ -54,10 +52,8 @@ func runStatic() {
 	must("enable BLE stack", adapter.Enable())
 	common.GetHash()
 
-	bl := hitBeaconAPI(common.HASHED)
-	if !bl {
-		break
-	}
+	//musti bikin retry
+	_ := hitBeaconAPI(common.HASHED)
 
 	adv := adapter.DefaultAdvertisement()
 
@@ -82,7 +78,7 @@ func must(action string, err error) {
 }
 
 func hitBeaconAPI(data string) bool {
-	url := BASE_URL + "/api-iot/v1/localname-beacon"
+	url := common.BASE_URL + "/api-iot/v1/localname-beacon"
 	strToken := "Basic " + common.TOKEN
 	method := "POST"
 
