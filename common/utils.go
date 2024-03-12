@@ -12,6 +12,7 @@ import (
 
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/spf13/viper"
+	sqids "github.com/sqids/sqids-go"
 )
 
 var LOCAL_NAME string
