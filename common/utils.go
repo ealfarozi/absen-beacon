@@ -87,9 +87,7 @@ func GetVars() {
 func GetUUID() string {
 	s, _ := sqids.New()
 	id, _ := s.Encode([]uint64{1, 2, 3}) // "86Rf07"
-
-	//id := uuid.New()
-	return id.String()
+	return id
 }
 
 func HitAPI(url string, jsonStr []byte, method string, strToken string, timeout time.Duration) (*http.Request, *http.Response, []byte, error) {
