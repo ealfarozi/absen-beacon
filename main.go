@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/ealfarozi/absen-beacon/common"
@@ -24,13 +26,18 @@ func main() {
 func run() {
 	must("enable BLE stack", adapter.Enable())
 	common.GetHash()
+
+	bl := hitBeaconAPI(common.HASHED)
+	if !bl {
+		break
+	}
+
 	adv := adapter.DefaultAdvertisement()
 
 	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{
 		LocalName: common.LOCAL_NAME + "|" + common.UUID + "|" + common.HASHED,
 	}))
 	must("start adv", adv.Start())
-
 	println("start advertising...")
 
 	address, _ := adapter.Address()
@@ -46,6 +53,12 @@ func run() {
 func runStatic() {
 	must("enable BLE stack", adapter.Enable())
 	common.GetHash()
+
+	bl := hitBeaconAPI(common.HASHED)
+	if !bl {
+		break
+	}
+
 	adv := adapter.DefaultAdvertisement()
 
 	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{
@@ -68,6 +81,35 @@ func must(action string, err error) {
 	}
 }
 
-// func hitBeaconAPI(data string) bool {
+func hitBeaconAPI(data string) bool {
+	url := BASE_URL + "/api-iot/v1/localname-beacon"
+	strToken := "Basic " + common.TOKEN
+	method := "POST"
 
-// }
+	b := common.BeaconRequest{}
+	b.BeaconID = common.UUID
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	startTime := time.Now().In(loc)
+	endTime := startTime.Add(time.Second * common.REFRESH_INTERVAL)
+	b.StartTime = startTime.Format("2006-01-02 15:04:05")
+	b.EndTime = endTime.Format("2006-01-02 15:04:05")
+	b.ExpTimeMin = common.REFRESH_INTERVAL / 60
+	b.Data = data
+
+	br, _ := json.Marshal(b)
+
+	_, resp, body, err := common.HitAPI(url, br, "POST", strToken, time.Duration(120))
+	fmt.Println("[Hit BeaconRequest]:", resp)
+	if err != nil {
+		fmt.Println("[Error Hit BeaconRequest]:", body)
+		return false
+	}
+
+	if resp.StatusCode != 200 {
+		fmt.Println("[Error Hit BeaconRequest]:", body)
+		fmt.Println(body)
+		return false
+	}
+
+	return true
+}

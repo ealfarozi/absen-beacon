@@ -16,19 +16,12 @@ import (
 )
 
 var LOCAL_NAME string
+var BASE_URL string
+var TOKEN string
 var HASHED string
 var REFRESH_INTERVAL int
 var IS_STATIC string
 var UUID string
-
-type LoginRequest struct {
-	NIK        int    `json:"trx_id,omitempty"`
-	Code       int    `json:"code,omitempty"`
-	Message    string `json:"message,omitempty"`
-	Data       string `json:"data,omitempty"`
-	SysMessage string `json:"system_message,omitempty"`
-	Request    interface{}
-}
 
 type BeaconRequest struct {
 	BeaconID   string `json:"beacon_id,omitempty"`
@@ -41,8 +34,12 @@ type BeaconRequest struct {
 type BeaconResponse struct {
 	Success bool   `json:"success,omitempty"`
 	Code    int    `json:"code,omitempty"`
-	Data    string `json:"data,omitempty"`
+	Data    Data   `json:"data,omitempty"`
 	Message string `json:"message,omitempty"`
+}
+
+type Data struct {
+	Time string `json:"time,omitempty"`
 }
 
 // ViperEnvVariable is func to get .env file
@@ -78,6 +75,8 @@ func GetHash() {
 
 func GetVars() {
 	LOCAL_NAME = GetEnv("LOCAL_NAME")
+	TOKEN = GetEnv("TOKEN")
+	BASE_URL = GetEnv("BASE_URL")
 	rim, _ := strconv.Atoi(GetEnv("REFRESH_INTERVAL_SEC"))
 	REFRESH_INTERVAL = rim
 	IS_STATIC = GetEnv("IS_STATIC")
