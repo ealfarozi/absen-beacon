@@ -28,7 +28,7 @@ func run() {
 	common.GetHash()
 
 	//musti bikin retry
-	_ := hitBeaconAPI(common.HASHED)
+	hitBeaconAPI(common.HASHED)
 
 	adv := adapter.DefaultAdvertisement()
 
@@ -53,7 +53,7 @@ func runStatic() {
 	common.GetHash()
 
 	//musti bikin retry
-	_ := hitBeaconAPI(common.HASHED)
+	hitBeaconAPI(common.HASHED)
 
 	adv := adapter.DefaultAdvertisement()
 
@@ -80,7 +80,6 @@ func must(action string, err error) {
 func hitBeaconAPI(data string) bool {
 	url := common.BASE_URL + "/api-iot/v1/localname-beacon"
 	strToken := "Basic " + common.TOKEN
-	method := "POST"
 
 	b := common.BeaconRequest{}
 	b.BeaconID = common.UUID
