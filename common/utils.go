@@ -68,12 +68,12 @@ func GetEnv(key string) string {
 
 func SetHash(str string) uint64 {
 	h1 := fnv1a.HashString64(str)
-	fmt.Println("Setup hash", str, ":", h1)
+	fmt.Println("Setup hash", str, h1)
 	return h1
 }
 
 func GetHash() {
-	HASHED = strconv.FormatUint(SetHash(LOCAL_NAME+":"+GetUUID()), 10)
+	HASHED = strconv.FormatUint(SetHash(UUID+":"+GetUUID()), 10)
 }
 
 func GetVars() {
