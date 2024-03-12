@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/spf13/viper"
-	sqids "github.com/sqids/sqids-go"
 )
 
 var LOCAL_NAME string
@@ -85,9 +85,8 @@ func GetVars() {
 }
 
 func GetUUID() string {
-	s, _ := sqids.New()
-	id, _ := s.Encode([]uint64{1, 2, 3}) // "86Rf07"
-	return id
+	id := uuid.New()
+	return id.String()
 }
 
 func HitAPI(url string, jsonStr []byte, method string, strToken string, timeout time.Duration) (*http.Request, *http.Response, []byte, error) {
