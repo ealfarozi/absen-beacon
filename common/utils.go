@@ -73,7 +73,7 @@ func SetHash(str string) uint64 {
 }
 
 func GetHash() {
-	HASHED = strconv.FormatUint(SetHash(UUID+":"+GetUUID()), 10)
+	HASHED = strconv.FormatUint(SetHash(LOCAL_NAME+":"+GetUUID()), 10)
 }
 
 func GetVars() {
