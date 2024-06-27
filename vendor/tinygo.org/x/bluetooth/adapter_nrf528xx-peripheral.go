@@ -27,13 +27,18 @@ func handleEvent() {
 			if debug {
 				println("evt: connected in peripheral role")
 			}
-			currentConnection.Reg = gapEvent.conn_handle
-			DefaultAdapter.connectHandler(Address{}, true)
+			currentConnection.handle.Reg = uint16(gapEvent.conn_handle)
+			connectEvent := gapEvent.params.unionfield_connected()
+			device := Device{
+				Address:          Address{makeMACAddress(connectEvent.peer_addr)},
+				connectionHandle: gapEvent.conn_handle,
+			}
+			DefaultAdapter.connectHandler(device, true)
 		case C.BLE_GAP_EVT_DISCONNECTED:
 			if debug {
 				println("evt: disconnected")
 			}
-			currentConnection.Reg = C.BLE_CONN_HANDLE_INVALID
+			currentConnection.handle.Reg = C.BLE_CONN_HANDLE_INVALID
 			// Auto-restart advertisement if needed.
 			if defaultAdvertisement.isAdvertising.Get() != 0 {
 				// The advertisement was running but was automatically stopped
@@ -44,7 +49,10 @@ func handleEvent() {
 				// necessary.
 				C.sd_ble_gap_adv_start(defaultAdvertisement.handle, C.BLE_CONN_CFG_TAG_DEFAULT)
 			}
-			DefaultAdapter.connectHandler(Address{}, false)
+			device := Device{
+				connectionHandle: gapEvent.conn_handle,
+			}
+			DefaultAdapter.connectHandler(device, false)
 		case C.BLE_GAP_EVT_DATA_LENGTH_UPDATE_REQUEST:
 			// We need to respond with sd_ble_gap_data_length_update. Setting
 			// both parameters to nil will make sure we send the default values.

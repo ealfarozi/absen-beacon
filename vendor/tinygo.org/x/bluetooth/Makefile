@@ -11,6 +11,8 @@ smoketest-tinygo:
 	@md5sum test.hex
 	$(TINYGO) build -o test.uf2 -size=short -target=circuitplay-bluefruit ./examples/circuitplay
 	@md5sum test.hex
+	$(TINYGO) build -o test.hex -size=short -target=circuitplay-bluefruit ./examples/connparams
+	@md5sum test.hex
 	$(TINYGO) build -o test.uf2 -size=short -target=circuitplay-bluefruit ./examples/discover
 	@md5sum test.hex
 	$(TINYGO) build -o test.hex -size=short -target=pca10040-s132v6       ./examples/heartrate
@@ -32,10 +34,19 @@ smoketest-tinygo:
 	@md5sum test.hex
 	$(TINYGO) build -o test.hex -size=short -target=microbit-v2-s113v7    ./examples/nusserver
 	@md5sum test.hex
+	$(TINYGO) build -o test.uf2 -size=short -target=nano-rp2040 		  ./examples/discover
+	@md5sum test.hex
+	$(TINYGO) build -o test.uf2 -size=short -target=arduino-nano33 		  ./examples/discover
+	@md5sum test.hex
+	$(TINYGO) build -o test.uf2 -size=short -target=pyportal	          ./examples/discover
+	@md5sum test.hex
+	$(TINYGO) build -o test.uf2 -size=short -target=nano-rp2040 		  ./examples/advertisement
+	@md5sum test.hex
 
 smoketest-linux:
 	# Test on Linux.
 	GOOS=linux go build -o /tmp/go-build-discard ./examples/advertisement
+	GOOS=linux go build -o /tmp/go-build-discard ./examples/connparams
 	GOOS=linux go build -o /tmp/go-build-discard ./examples/heartrate
 	GOOS=linux go build -o /tmp/go-build-discard ./examples/heartrate-monitor
 	GOOS=linux go build -o /tmp/go-build-discard ./examples/nusserver

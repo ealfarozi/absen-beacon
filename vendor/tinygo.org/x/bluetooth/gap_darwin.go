@@ -85,6 +85,12 @@ func (a *Adapter) StopScan() error {
 
 // Device is a connection to a remote peripheral.
 type Device struct {
+	Address Address
+
+	*deviceInternal
+}
+
+type deviceInternal struct {
 	delegate *peripheralDelegate
 
 	cm   cbgo.CentralManager
@@ -97,14 +103,14 @@ type Device struct {
 }
 
 // Connect starts a connection attempt to the given peripheral device address.
-func (a *Adapter) Connect(address Address, params ConnectionParams) (*Device, error) {
+func (a *Adapter) Connect(address Address, params ConnectionParams) (Device, error) {
 	uuid, err := cbgo.ParseUUID(address.UUID.String())
 	if err != nil {
-		return nil, err
+		return Device{}, err
 	}
 	prphs := a.cm.RetrievePeripheralsWithIdentifiers([]cbgo.UUID{uuid})
 	if len(prphs) == 0 {
-		return nil, fmt.Errorf("Connect failed: no peer with address: %s", address.UUID.String())
+		return Device{}, fmt.Errorf("Connect failed: no peer with address: %s", address.UUID.String())
 	}
 
 	timeout := defaultConnectionTimeout
@@ -129,20 +135,23 @@ func (a *Adapter) Connect(address Address, params ConnectionParams) (*Device, er
 
 			// check if we have received a disconnected peripheral
 			if p.State() == cbgo.PeripheralStateDisconnected {
-				return nil, connectionError
+				return Device{}, connectionError
 			}
 
-			d := &Device{
-				cm:           a.cm,
-				prph:         p,
-				servicesChan: make(chan error),
-				charsChan:    make(chan error),
+			d := Device{
+				Address: address,
+				deviceInternal: &deviceInternal{
+					cm:           a.cm,
+					prph:         p,
+					servicesChan: make(chan error),
+					charsChan:    make(chan error),
+				},
 			}
 
 			d.delegate = &peripheralDelegate{d: d}
 			p.SetDelegate(d.delegate)
 
-			a.connectHandler(address, true)
+			a.connectHandler(d, true)
 
 			return d, nil
 
@@ -162,8 +171,20 @@ func (a *Adapter) Connect(address Address, params ConnectionParams) (*Device, er
 
 // Disconnect from the BLE device. This method is non-blocking and does not
 // wait until the connection is fully gone.
-func (d *Device) Disconnect() error {
+func (d Device) Disconnect() error {
 	d.cm.CancelConnect(d.prph)
+	return nil
+}
+
+// RequestConnectionParams requests a different connection latency and timeout
+// of the given device connection. Fields that are unset will be left alone.
+// Whether or not the device will actually honor this, depends on the device and
+// on the specific parameters.
+//
+// This call has not yet been implemented on macOS.
+func (d Device) RequestConnectionParams(params ConnectionParams) error {
+	// TODO: implement this using setDesiredConnectionLatency, see:
+	// https://developer.apple.com/documentation/corebluetooth/cbperipheralmanager/1393277-setdesiredconnectionlatency
 	return nil
 }
 
@@ -172,7 +193,7 @@ func (d *Device) Disconnect() error {
 type peripheralDelegate struct {
 	cbgo.PeripheralDelegateBase
 
-	d *Device
+	d Device
 }
 
 // DidDiscoverServices is called when the services for a Peripheral
@@ -209,5 +230,22 @@ func (pd *peripheralDelegate) DidUpdateValueForCharacteristic(prph cbgo.Peripher
 
 		}
 
+	}
+}
+
+// DidWriteValueForCharacteristic is called after the characteristic for a Service
+// for a Peripheral trigger a write with response. It contains the returned error or nil.
+func (pd *peripheralDelegate) DidWriteValueForCharacteristic(_ cbgo.Peripheral, chr cbgo.Characteristic, err error) {
+	uuid, _ := ParseUUID(chr.UUID().String())
+	svcuuid, _ := ParseUUID(chr.Service().UUID().String())
+
+	if svc, ok := pd.d.services[svcuuid]; ok {
+		for _, char := range svc.characteristics {
+			if char.characteristic == chr && uuid == char.UUID() { // compare pointers
+				if char.writeChan != nil {
+					char.writeChan <- err
+				}
+			}
+		}
 	}
 }

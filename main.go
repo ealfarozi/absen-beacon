@@ -14,12 +14,17 @@ var adapter = bluetooth.DefaultAdapter
 func main() {
 	common.GetVars()
 
-	if common.IS_STATIC == "0" {
-		for {
-			run()
+	/*
+		if common.IS_STATIC == "0" {
+			for {
+				run()
+			}
+		} else {
+			runStatic()
 		}
-	} else {
-		runStatic()
+	*/
+	for {
+		run()
 	}
 }
 
@@ -93,17 +98,37 @@ func hitBeaconAPI(data string) bool {
 
 	br, _ := json.Marshal(b)
 
-	_, resp, body, err := common.HitAPI(url, br, "POST", strToken, time.Duration(120))
-	fmt.Println("[Hit BeaconRequest]:", resp)
-	if err != nil {
-		fmt.Println("[Error Hit BeaconRequest]:", body)
-		return false
-	}
+	/*
+		_, resp, body, err := common.HitAPI(url, br, "POST", strToken, time.Duration(120))
+		fmt.Println("[Hit BeaconRequest]:", resp)
+		if err != nil {
+			fmt.Println("[Error Hit BeaconRequest]:", body)
+			return false
+		}
 
-	if resp.StatusCode != 200 {
-		fmt.Println("[Error Hit BeaconRequest]:", body)
-		fmt.Println(body)
-		return false
+		if resp.StatusCode != 200 {
+			fmt.Println("[Error Hit BeaconRequest]:", body)
+			fmt.Println(body)
+			return false
+		}
+	*/
+
+	maxRetries := 10
+	for i := 0; i < maxRetries; i++ {
+		_, resp, body, err := common.HitAPI(url, br, "POST", strToken, time.Duration(120))
+		fmt.Println("[Hit BeaconRequest]:", resp)
+		if err != nil {
+			fmt.Println("[Error Hit BeaconRequest]:", body)
+		} else if resp.StatusCode == 200 {
+			return true
+		} else {
+			fmt.Println("[Error Hit BeaconRequest]:", body)
+		}
+
+		if i < maxRetries-1 {
+			fmt.Println("Retrying...")
+			time.Sleep(2 * time.Second)
+		}
 	}
 
 	return true

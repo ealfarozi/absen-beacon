@@ -25,20 +25,24 @@ func handleEvent() {
 		switch id {
 		case C.BLE_GAP_EVT_CONNECTED:
 			connectEvent := gapEvent.params.unionfield_connected()
+			device := Device{
+				Address:          Address{makeMACAddress(connectEvent.peer_addr)},
+				connectionHandle: gapEvent.conn_handle,
+			}
 			switch connectEvent.role {
 			case C.BLE_GAP_ROLE_PERIPH:
 				if debug {
 					println("evt: connected in peripheral role")
 				}
-				currentConnection.Reg = gapEvent.conn_handle
-				DefaultAdapter.connectHandler(Address{}, true)
+				currentConnection.handle.Reg = uint16(gapEvent.conn_handle)
+				DefaultAdapter.connectHandler(device, true)
 			case C.BLE_GAP_ROLE_CENTRAL:
 				if debug {
 					println("evt: connected in central role")
 				}
 				connectionAttempt.connectionHandle = gapEvent.conn_handle
 				connectionAttempt.state.Set(2) // connection was successful
-				DefaultAdapter.connectHandler(Address{}, true)
+				DefaultAdapter.connectHandler(device, true)
 			}
 		case C.BLE_GAP_EVT_DISCONNECTED:
 			if debug {
@@ -46,11 +50,11 @@ func handleEvent() {
 			}
 			// Clean up state for this connection.
 			for i, cb := range gattcNotificationCallbacks {
-				if cb.connectionHandle == currentConnection.Reg {
+				if uint16(cb.connectionHandle) == currentConnection.handle.Reg {
 					gattcNotificationCallbacks[i].valueHandle = 0 // 0 means invalid
 				}
 			}
-			currentConnection.Reg = C.BLE_CONN_HANDLE_INVALID
+			currentConnection.handle.Reg = C.BLE_CONN_HANDLE_INVALID
 			// Auto-restart advertisement if needed.
 			if defaultAdvertisement.isAdvertising.Get() != 0 {
 				// The advertisement was running but was automatically stopped
@@ -61,10 +65,21 @@ func handleEvent() {
 				// necessary.
 				C.sd_ble_gap_adv_start(defaultAdvertisement.handle, C.BLE_CONN_CFG_TAG_DEFAULT)
 			}
-			DefaultAdapter.connectHandler(Address{}, false)
+			device := Device{
+				connectionHandle: gapEvent.conn_handle,
+			}
+			DefaultAdapter.connectHandler(device, false)
+		case C.BLE_GAP_EVT_CONN_PARAM_UPDATE:
+			if debug {
+				// Print connection parameters for easy debugging.
+				params := gapEvent.params.unionfield_conn_param_update().conn_params
+				interval_ms := params.min_conn_interval * 125 / 100 // min and max are the same here
+				print("conn param update interval=", interval_ms, "ms latency=", params.slave_latency, " timeout=", params.conn_sup_timeout*10, "ms")
+				println()
+			}
 		case C.BLE_GAP_EVT_ADV_REPORT:
 			advReport := gapEvent.params.unionfield_adv_report()
-			if debug && &scanReportBuffer.data[0] != advReport.data.p_data {
+			if debug && &scanReportBuffer.data[0] != (*byte)(unsafe.Pointer(advReport.data.p_data)) {
 				// Sanity check.
 				panic("scanReportBuffer != advReport.p_data")
 			}
@@ -73,8 +88,7 @@ func handleEvent() {
 			scanReportBuffer.len = byte(advReport.data.len)
 			globalScanResult.RSSI = int16(advReport.rssi)
 			globalScanResult.Address = Address{
-				MACAddress{MAC: advReport.peer_addr.addr,
-					isRandom: advReport.peer_addr.bitfield_addr_type() != 0},
+				makeMACAddress(advReport.peer_addr),
 			}
 			globalScanResult.AdvertisementPayload = &scanReportBuffer
 			// Signal to the main thread that there was a scan report.
@@ -101,6 +115,21 @@ func handleEvent() {
 			C.sd_ble_gap_phy_update(gapEvent.conn_handle, &phyUpdateRequest.peer_preferred_phys)
 		case C.BLE_GAP_EVT_PHY_UPDATE:
 			// ignore confirmation of phy successfully updated
+		case C.BLE_GAP_EVT_TIMEOUT:
+			timeoutEvt := gapEvent.params.unionfield_timeout()
+			switch timeoutEvt.src {
+			case C.BLE_GAP_TIMEOUT_SRC_CONN:
+				// Failed to connect to a peripheral.
+				if debug {
+					println("gap timeout: conn")
+				}
+				connectionAttempt.state.Set(3) // connection timed out
+			default:
+				// For example a scan timeout.
+				if debug {
+					println("gap timeout: other")
+				}
+			}
 		default:
 			if debug {
 				println("unknown GAP event:", id)

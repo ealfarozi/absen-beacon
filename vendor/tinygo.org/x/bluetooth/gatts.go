@@ -56,3 +56,13 @@ func (p CharacteristicPermissions) Write() bool {
 func (p CharacteristicPermissions) WriteWithoutResponse() bool {
 	return p&CharacteristicWriteWithoutResponsePermission != 0
 }
+
+// Notify returns whether notifications are permitted.
+func (p CharacteristicPermissions) Notify() bool {
+	return p&CharacteristicNotifyPermission != 0
+}
+
+// Indicate returns whether indications are permitted.
+func (p CharacteristicPermissions) Indicate() bool {
+	return p&CharacteristicIndicatePermission != 0
+}

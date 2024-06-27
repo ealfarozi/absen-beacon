@@ -55,8 +55,35 @@ type AdvertisementOptions struct {
 	Interval Duration
 
 	// ManufacturerData stores Advertising Data.
-	// Keys are the Manufacturer ID to associate with the data.
-	ManufacturerData map[uint16]interface{}
+	ManufacturerData []ManufacturerDataElement
+
+	// ServiceData stores Advertising Data.
+	ServiceData []ServiceDataElement
+}
+
+// Manufacturer data that's part of an advertisement packet.
+type ManufacturerDataElement struct {
+	// The company ID, which must be one of the assigned company IDs.
+	// The full list is in here:
+	// https://www.bluetooth.com/specifications/assigned-numbers/
+	// The list can also be viewed here:
+	// https://bitbucket.org/bluetooth-SIG/public/src/main/assigned_numbers/company_identifiers/company_identifiers.yaml
+	// The value 0xffff can also be used for testing.
+	CompanyID uint16
+
+	// The value, which can be any value but can't be very large.
+	Data []byte
+}
+
+// ServiceDataElement strores a uuid/byte-array pair used as ServiceData advertisment elements
+type ServiceDataElement struct {
+	// service uuid or company uuid
+	// The list can also be viewed here:
+	// https://bitbucket.org/bluetooth-SIG/public/src/main/assigned_numbers/company_identifiers/company_identifiers.yaml
+	// https://bitbucket.org/bluetooth-SIG/public/src/main/assigned_numbers/uuids/service_uuids.yaml
+	UUID UUID
+	// the data byte array
+	Data []byte
 }
 
 // Duration is the unit of time used in BLE, in 0.625µs units. This unit of time
@@ -110,9 +137,13 @@ type AdvertisementPayload interface {
 	// if this data is not available.
 	Bytes() []byte
 
-	// ManufacturerData returns a map with all the manufacturer data present in the
-	//advertising. IT may be empty.
-	ManufacturerData() map[uint16][]byte
+	// ManufacturerData returns a slice with all the manufacturer data present in the
+	// advertising. It may be empty.
+	ManufacturerData() []ManufacturerDataElement
+
+	// ServiceData returns a slice with all the service data present in the
+	// advertising. It may be empty.
+	ServiceData() []ServiceDataElement
 }
 
 // AdvertisementFields contains advertisement fields in structured form.
@@ -127,7 +158,10 @@ type AdvertisementFields struct {
 	ServiceUUIDs []UUID
 
 	// ManufacturerData is the manufacturer data of the advertisement.
-	ManufacturerData map[uint16][]byte
+	ManufacturerData []ManufacturerDataElement
+
+	// ServiceData is the service data of the advertisement.
+	ServiceData []ServiceDataElement
 }
 
 // advertisementFields wraps AdvertisementFields to implement the
@@ -161,8 +195,13 @@ func (p *advertisementFields) Bytes() []byte {
 }
 
 // ManufacturerData returns the underlying ManufacturerData field.
-func (p *advertisementFields) ManufacturerData() map[uint16][]byte {
+func (p *advertisementFields) ManufacturerData() []ManufacturerDataElement {
 	return p.AdvertisementFields.ManufacturerData
+}
+
+// ServiceData returns the underlying ServiceData field.
+func (p *advertisementFields) ServiceData() []ServiceDataElement {
+	return p.AdvertisementFields.ServiceData
 }
 
 // rawAdvertisementPayload encapsulates a raw advertisement packet. Methods to
@@ -254,22 +293,58 @@ func (buf *rawAdvertisementPayload) HasServiceUUID(uuid UUID) bool {
 }
 
 // ManufacturerData returns the manufacturer data in the advertisement payload.
-func (buf *rawAdvertisementPayload) ManufacturerData() map[uint16][]byte {
-	mData := make(map[uint16][]byte)
-	data := buf.Bytes()
-	for len(data) >= 2 {
-		fieldLength := data[0]
-		if int(fieldLength)+1 > len(data) {
-			// Invalid field length.
-			return nil
+func (buf *rawAdvertisementPayload) ManufacturerData() []ManufacturerDataElement {
+	var manufacturerData []ManufacturerDataElement
+	for index := 0; index < int(buf.len)+4; index += int(buf.data[index]) + 1 {
+		fieldLength := int(buf.data[index+0])
+		if fieldLength < 3 {
+			continue
 		}
-		// If this is the manufacturer data
-		if byte(0xFF) == data[1] {
-			mData[uint16(data[2])+(uint16(data[3])<<8)] = data[4 : fieldLength+1]
+		fieldType := buf.data[index+1]
+		if fieldType != 0xff {
+			continue
 		}
-		data = data[fieldLength+1:]
+		key := uint16(buf.data[index+2]) | uint16(buf.data[index+3])<<8
+		manufacturerData = append(manufacturerData, ManufacturerDataElement{
+			CompanyID: key,
+			Data:      buf.data[index+4 : index+fieldLength+1],
+		})
 	}
-	return mData
+	return manufacturerData
+}
+
+// ServiceData returns the service data in the advertisment payload
+func (buf *rawAdvertisementPayload) ServiceData() []ServiceDataElement {
+	var serviceData []ServiceDataElement
+	for index := 0; index < int(buf.len)+4; index += int(buf.data[index]) + 1 {
+		fieldLength := int(buf.data[index+0])
+		if fieldLength < 3 { // field has only length and type and no data
+			continue
+		}
+		fieldType := buf.data[index+1]
+		switch fieldType {
+		case 0x16: // 16-bit uuid
+			serviceData = append(serviceData, ServiceDataElement{
+				UUID: New16BitUUID(uint16(buf.data[index+2]) + (uint16(buf.data[index+3]) << 8)),
+				Data: buf.data[index+4 : index+fieldLength+1],
+			})
+		case 0x20: // 32-bit uuid
+			serviceData = append(serviceData, ServiceDataElement{
+				UUID: New32BitUUID(uint32(buf.data[index+2]) + (uint32(buf.data[index+3]) << 8) + (uint32(buf.data[index+4]) << 16) + (uint32(buf.data[index+5]) << 24)),
+				Data: buf.data[index+6 : index+fieldLength+1],
+			})
+		case 0x21: // 128-bit uuid
+			var uuidArray [16]byte
+			copy(uuidArray[:], buf.data[index+2:index+18])
+			serviceData = append(serviceData, ServiceDataElement{
+				UUID: NewUUID(uuidArray),
+				Data: buf.data[index+18 : index+fieldLength+1],
+			})
+		default:
+			continue
+		}
+	}
+	return serviceData
 }
 
 // reset restores this buffer to the original state.
@@ -300,36 +375,88 @@ func (buf *rawAdvertisementPayload) addFromOptions(options AdvertisementOptions)
 		}
 	}
 
-	if len(options.ManufacturerData) > 0 {
-		buf.addManufacturerData(options.ManufacturerData)
+	for _, element := range options.ManufacturerData {
+		if !buf.addManufacturerData(element.CompanyID, element.Data) {
+			return false
+		}
+	}
+
+	for _, element := range options.ServiceData {
+		if !buf.addServiceData(element.UUID, element.Data) {
+			return false
+		}
 	}
 
 	return true
 }
 
 // addManufacturerData adds manufacturer data ([]byte) entries to the advertisement payload.
-func (buf *rawAdvertisementPayload) addManufacturerData(manufacturerData map[uint16]interface{}) (ok bool) {
-	payloadData := buf.Bytes()
-	for manufacturerID, rawData := range manufacturerData {
-		data := rawData.([]byte)
-		// Check if the manufacturer ID is within the range of 16 bits (0-65535).
-		if manufacturerID > 0xFFFF {
-			// Invalid manufacturer ID.
+func (buf *rawAdvertisementPayload) addManufacturerData(key uint16, value []byte) (ok bool) {
+	// Check whether the field can fit this manufacturer data.
+	fieldLength := len(value) + 4
+	if int(buf.len)+fieldLength > len(buf.data) {
+		return false
+	}
+
+	// Add the data.
+	buf.data[buf.len+0] = uint8(fieldLength - 1)
+	buf.data[buf.len+1] = 0xff
+	buf.data[buf.len+2] = uint8(key)
+	buf.data[buf.len+3] = uint8(key >> 8)
+	copy(buf.data[buf.len+4:], value)
+	buf.len += uint8(fieldLength)
+
+	return true
+}
+
+// addServiceData adds service data ([]byte) entries to the advertisement payload.
+func (buf *rawAdvertisementPayload) addServiceData(uuid UUID, data []byte) (ok bool) {
+	switch {
+	case uuid.Is16Bit():
+		// check if it fits
+		fieldLength := 1 + 1 + 2 + len(data) // 1 byte length, 1 byte ad type, 2 bytes uuid, actual service data
+		if int(buf.len)+fieldLength > len(buf.data) {
 			return false
 		}
+		// Add the data.
+		buf.data[buf.len+0] = byte(fieldLength - 1)
+		buf.data[buf.len+1] = 0x16
+		buf.data[buf.len+2] = byte(uuid.Get16Bit())
+		buf.data[buf.len+3] = byte(uuid.Get16Bit() >> 8)
+		copy(buf.data[buf.len+4:], data)
+		buf.len += uint8(fieldLength)
 
-		fieldLength := len(data) + 3
+	case uuid.Is32Bit():
+		// check if it fits
+		fieldLength := 1 + 1 + 4 + len(data) // 1 byte length, 1 byte ad type, 4 bytes uuid, actual service data
+		if int(buf.len)+fieldLength > len(buf.data) {
+			return false
+		}
+		// Add the data.
+		buf.data[buf.len+0] = byte(fieldLength - 1)
+		buf.data[buf.len+1] = 0x20
+		buf.data[buf.len+2] = byte(uuid.Get32Bit())
+		buf.data[buf.len+3] = byte(uuid.Get32Bit() >> 8)
+		buf.data[buf.len+4] = byte(uuid.Get32Bit() >> 16)
+		buf.data[buf.len+5] = byte(uuid.Get32Bit() >> 24)
+		copy(buf.data[buf.len+6:], data)
+		buf.len += uint8(fieldLength)
 
-		// Build manufacturer ID parts
-		manufacturerDataBit := byte(0xFF)
-		manufacturerIDPart1 := byte(manufacturerID & 0xFF)
-		manufacturerIDPart2 := byte((manufacturerID >> 8) & 0xFF)
+	default: // must be 128-bit uuid
+		// check if it fits
+		fieldLength := 1 + 1 + 16 + len(data) // 1 byte length, 1 byte ad type, 16 bytes uuid, actual service data
+		if int(buf.len)+fieldLength > len(buf.data) {
+			return false
+		}
+		// Add the data.
+		buf.data[buf.len+0] = byte(fieldLength - 1)
+		buf.data[buf.len+1] = 0x21
+		uuid_bytes := uuid.Bytes()
+		copy(buf.data[buf.len+2:], uuid_bytes[:])
+		copy(buf.data[buf.len+2+16:], data)
+		buf.len += uint8(fieldLength)
 
-		payloadData = append(payloadData, byte(fieldLength), manufacturerDataBit, manufacturerIDPart1, manufacturerIDPart2)
-		payloadData = append(payloadData, data...)
 	}
-	buf.len = uint8(len(payloadData))
-	copy(buf.data[:], payloadData)
 	return true
 }
 
@@ -391,7 +518,8 @@ func (buf *rawAdvertisementPayload) addServiceUUID(uuid UUID) (ok bool) {
 	}
 }
 
-// ConnectionParams are used when connecting to a peripherals.
+// ConnectionParams are used when connecting to a peripherals or when changing
+// the parameters of an active connection.
 type ConnectionParams struct {
 	// The timeout for the connection attempt. Not used during the rest of the
 	// connection. If no duration is specified, a default timeout will be used.
@@ -403,4 +531,9 @@ type ConnectionParams struct {
 	// will be used.
 	MinInterval Duration
 	MaxInterval Duration
+
+	// Connection Supervision Timeout. After this time has passed with no
+	// communication, the connection is considered lost. If no timeout is
+	// specified, the timeout will be unchanged.
+	Timeout Duration
 }

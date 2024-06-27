@@ -42,8 +42,13 @@ func handleEvent() {
 		gapEvent := eventBuf.evt.unionfield_gap_evt()
 		switch id {
 		case C.BLE_GAP_EVT_CONNECTED:
-			currentConnection.Reg = gapEvent.conn_handle
-			DefaultAdapter.connectHandler(Address{}, true)
+			currentConnection.handle.Reg = uint16(gapEvent.conn_handle)
+			connectEvent := gapEvent.params.unionfield_connected()
+			device := Device{
+				Address:          Address{makeMACAddress(connectEvent.peer_addr)},
+				connectionHandle: gapEvent.conn_handle,
+			}
+			DefaultAdapter.connectHandler(device, true)
 		case C.BLE_GAP_EVT_DISCONNECTED:
 			if defaultAdvertisement.isAdvertising.Get() != 0 {
 				// The advertisement was running but was automatically stopped
@@ -54,8 +59,11 @@ func handleEvent() {
 				// necessary.
 				defaultAdvertisement.start()
 			}
-			currentConnection.Reg = C.BLE_CONN_HANDLE_INVALID
-			DefaultAdapter.connectHandler(Address{}, false)
+			currentConnection.handle.Reg = C.BLE_CONN_HANDLE_INVALID
+			device := Device{
+				connectionHandle: gapEvent.conn_handle,
+			}
+			DefaultAdapter.connectHandler(device, false)
 		case C.BLE_GAP_EVT_CONN_PARAM_UPDATE_REQUEST:
 			// Respond with the default PPCP connection parameters by passing
 			// nil:
@@ -109,5 +117,13 @@ func (a *Adapter) Address() (MACAddress, error) {
 	if errCode != 0 {
 		return MACAddress{}, Error(errCode)
 	}
-	return MACAddress{MAC: addr.addr}, nil
+	return MACAddress{MAC: makeAddress(addr.addr)}, nil
+}
+
+// Convert a C.ble_gap_addr_t to a MACAddress struct.
+func makeMACAddress(addr C.ble_gap_addr_t) MACAddress {
+	return MACAddress{
+		MAC:      makeAddress(addr.addr),
+		isRandom: addr.addr_type != 0,
+	}
 }

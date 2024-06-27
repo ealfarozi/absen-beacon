@@ -12,14 +12,14 @@ import (
 type Adapter struct {
 	watcher *advertisement.BluetoothLEAdvertisementWatcher
 
-	connectHandler func(device Address, connected bool)
+	connectHandler func(device Device, connected bool)
 }
 
 // DefaultAdapter is the default adapter on the system.
 //
 // Make sure to call Enable() before using it to initialize the adapter.
 var DefaultAdapter = &Adapter{
-	connectHandler: func(device Address, connected bool) {
+	connectHandler: func(device Device, connected bool) {
 		return
 	},
 }
@@ -40,10 +40,14 @@ func awaitAsyncOperation(asyncOperation *foundation.IAsyncOperation, genericPara
 
 	// Wait until the async operation completes.
 	waitChan := make(chan struct{})
-	asyncOperation.SetCompleted(foundation.NewAsyncOperationCompletedHandler(ole.NewGUID(iid), func(instance *foundation.AsyncOperationCompletedHandler, asyncInfo *foundation.IAsyncOperation, asyncStatus foundation.AsyncStatus) {
+	handler := foundation.NewAsyncOperationCompletedHandler(ole.NewGUID(iid), func(instance *foundation.AsyncOperationCompletedHandler, asyncInfo *foundation.IAsyncOperation, asyncStatus foundation.AsyncStatus) {
 		status = asyncStatus
 		close(waitChan)
-	}))
+	})
+	defer handler.Release()
+
+	asyncOperation.SetCompleted(handler)
+
 	// Wait until async operation has stopped, and finish.
 	<-waitChan
 

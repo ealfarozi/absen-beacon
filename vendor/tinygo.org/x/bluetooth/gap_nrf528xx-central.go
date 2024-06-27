@@ -7,6 +7,7 @@ import (
 	"errors"
 	"runtime/volatile"
 	"time"
+	"unsafe"
 )
 
 /*
@@ -15,6 +16,7 @@ import (
 import "C"
 
 var errAlreadyConnecting = errors.New("bluetooth: already in a connection attempt")
+var errConnectionTimeout = errors.New("bluetooth: timeout while connecting")
 
 // Memory buffers needed by sd_ble_gap_scan_start.
 var (
@@ -40,12 +42,12 @@ func (a *Adapter) Scan(callback func(*Adapter, ScanResult)) error {
 	scanParams := C.ble_gap_scan_params_t{}
 	scanParams.set_bitfield_extended(0)
 	scanParams.set_bitfield_active(0)
-	scanParams.interval = uint16(NewDuration(40 * time.Millisecond))
-	scanParams.window = uint16(NewDuration(30 * time.Millisecond))
+	scanParams.interval = C.uint16_t(NewDuration(40 * time.Millisecond))
+	scanParams.window = C.uint16_t(NewDuration(30 * time.Millisecond))
 	scanParams.timeout = C.BLE_GAP_SCAN_TIMEOUT_UNLIMITED
 	scanReportBufferInfo := C.ble_data_t{
-		p_data: &scanReportBuffer.data[0],
-		len:    uint16(len(scanReportBuffer.data)),
+		p_data: (*C.uint8_t)(unsafe.Pointer(&scanReportBuffer.data[0])),
+		len:    C.uint16_t(len(scanReportBuffer.data)),
 	}
 	errCode := C.sd_ble_gap_scan_start(&scanParams, &scanReportBufferInfo)
 	if errCode != 0 {
@@ -91,15 +93,10 @@ func (a *Adapter) StopScan() error {
 	return nil
 }
 
-// Device is a connection to a remote peripheral.
-type Device struct {
-	connectionHandle uint16
-}
-
 // In-progress connection attempt.
 var connectionAttempt struct {
-	state            volatile.Register8 // 0 means unused, 1 means connecting, 2 means ready (connected or timeout)
-	connectionHandle uint16
+	state            volatile.Register8 // 0 means unused, 1 means connecting, 2 means connected, 3 means timeout
+	connectionHandle C.uint16_t
 }
 
 // Connect starts a connection attempt to the given peripheral device address.
@@ -108,10 +105,10 @@ var connectionAttempt struct {
 // connection attempt at once and that the address parameter must have the
 // IsRandom bit set correctly. This bit is set correctly for scan results, so
 // you can reuse that address directly.
-func (a *Adapter) Connect(address Address, params ConnectionParams) (*Device, error) {
+func (a *Adapter) Connect(address Address, params ConnectionParams) (Device, error) {
 	// Construct an address object as used in the SoftDevice.
 	var addr C.ble_gap_addr_t
-	addr.addr = address.MAC
+	addr.addr = makeSDAddress(address.MAC)
 	if address.IsRandom() {
 		switch address.MAC[5] >> 6 {
 		case 0b11:
@@ -142,22 +139,25 @@ func (a *Adapter) Connect(address Address, params ConnectionParams) (*Device, er
 	scanParams := C.ble_gap_scan_params_t{}
 	scanParams.set_bitfield_extended(0)
 	scanParams.set_bitfield_active(0)
-	scanParams.interval = uint16(NewDuration(40 * time.Millisecond))
-	scanParams.window = uint16(NewDuration(30 * time.Millisecond))
-	scanParams.timeout = uint16(params.ConnectionTimeout)
+	scanParams.interval = C.uint16_t(NewDuration(40 * time.Millisecond))
+	scanParams.window = C.uint16_t(NewDuration(30 * time.Millisecond))
+	scanParams.timeout = C.uint16_t(params.ConnectionTimeout / 16) // timeout in 10ms units
 
 	connectionParams := C.ble_gap_conn_params_t{
-		min_conn_interval: uint16(params.MinInterval) / 2,
-		max_conn_interval: uint16(params.MaxInterval) / 2,
+		min_conn_interval: C.uint16_t(params.MinInterval) / 2,
+		max_conn_interval: C.uint16_t(params.MaxInterval) / 2,
 		slave_latency:     0,   // mostly relevant to connected keyboards etc
 		conn_sup_timeout:  200, // 2 seconds (in 10ms units), the minimum recommended by Apple
+	}
+	if params.Timeout != 0 {
+		connectionParams.conn_sup_timeout = uint16(params.Timeout / 16)
 	}
 
 	// Flag to the event handler that we are waiting for incoming connections.
 	// This should be safe as long as Connect is not called concurrently. And
 	// even then, it should catch most such race conditions.
 	if connectionAttempt.state.Get() != 0 {
-		return nil, errAlreadyConnecting
+		return Device{}, errAlreadyConnecting
 	}
 	connectionAttempt.state.Set(1)
 
@@ -165,30 +165,68 @@ func (a *Adapter) Connect(address Address, params ConnectionParams) (*Device, er
 	errCode := C.sd_ble_gap_connect(&addr, &scanParams, &connectionParams, C.BLE_CONN_CFG_TAG_DEFAULT)
 	if errCode != 0 {
 		connectionAttempt.state.Set(0)
-		return nil, Error(errCode)
+		return Device{}, Error(errCode)
 	}
 
 	// Wait until the connection is established.
-	// TODO: use some sort of condition variable once the scheduler supports
-	// them.
-	for connectionAttempt.state.Get() != 2 {
-		arm.Asm("wfe")
+	for {
+		state := connectionAttempt.state.Get()
+		if state == 2 {
+			// Successfully connected.
+			connectionAttempt.state.Set(0)
+			connectionHandle := connectionAttempt.connectionHandle
+			return Device{
+				connectionHandle: connectionHandle,
+			}, nil
+		} else if state == 3 {
+			// Timeout while connecting.
+			connectionAttempt.state.Set(0)
+			return Device{}, errConnectionTimeout
+		} else {
+			// TODO: use some sort of condition variable once the scheduler
+			// supports them.
+			arm.Asm("wfe")
+		}
 	}
-	connectionHandle := connectionAttempt.connectionHandle
-	connectionAttempt.state.Set(0)
-
-	// Connection has been established.
-	return &Device{
-		connectionHandle: connectionHandle,
-	}, nil
 }
 
 // Disconnect from the BLE device.
-func (d *Device) Disconnect() error {
+func (d Device) Disconnect() error {
 	errCode := C.sd_ble_gap_disconnect(d.connectionHandle, C.BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION)
 	if errCode != 0 {
 		return Error(errCode)
 	}
 
 	return nil
+}
+
+// RequestConnectionParams requests a different connection latency and timeout
+// of the given device connection. Fields that are unset will be left alone.
+// Whether or not the device will actually honor this, depends on the device and
+// on the specific parameters.
+//
+// On the Nordic SoftDevice, this call will also set the slave latency to 0.
+func (d Device) RequestConnectionParams(params ConnectionParams) error {
+	// The default parameters if no specific parameters are picked.
+	connParams := C.ble_gap_conn_params_t{
+		min_conn_interval: C.BLE_GAP_CP_MIN_CONN_INTVL_NONE,
+		max_conn_interval: C.BLE_GAP_CP_MAX_CONN_INTVL_NONE,
+		slave_latency:     0,
+		conn_sup_timeout:  C.BLE_GAP_CP_CONN_SUP_TIMEOUT_NONE,
+	}
+
+	// Use specified parameters if available.
+	if params.MinInterval != 0 {
+		connParams.min_conn_interval = C.uint16_t(params.MinInterval) / 2
+	}
+	if params.MaxInterval != 0 {
+		connParams.max_conn_interval = C.uint16_t(params.MaxInterval) / 2
+	}
+	if params.Timeout != 0 {
+		connParams.conn_sup_timeout = C.uint16_t(params.Timeout) / 16
+	}
+
+	// Send them to peer device.
+	errCode := C.sd_ble_gap_conn_param_update(d.connectionHandle, &connParams)
+	return makeError(errCode)
 }

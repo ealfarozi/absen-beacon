@@ -14,7 +14,7 @@ import (
 //
 // Passing a nil slice of UUIDs will return a complete list of
 // services.
-func (d *Device) DiscoverServices(uuids []UUID) ([]DeviceService, error) {
+func (d Device) DiscoverServices(uuids []UUID) ([]DeviceService, error) {
 	d.prph.DiscoverServices([]cbgo.UUID{})
 
 	// clear cache of services
@@ -69,14 +69,14 @@ type DeviceService struct {
 type deviceService struct {
 	uuidWrapper
 
-	device *Device
+	device Device
 
 	service         cbgo.Service
 	characteristics []DeviceCharacteristic
 }
 
 // UUID returns the UUID for this DeviceService.
-func (s *DeviceService) UUID() UUID {
+func (s DeviceService) UUID() UUID {
 	return s.uuidWrapper
 }
 
@@ -89,7 +89,7 @@ func (s *DeviceService) UUID() UUID {
 //
 // Passing a nil slice of UUIDs will return a complete list of
 // characteristics.
-func (s *DeviceService) DiscoverCharacteristics(uuids []UUID) ([]DeviceCharacteristic, error) {
+func (s DeviceService) DiscoverCharacteristics(uuids []UUID) ([]DeviceCharacteristic, error) {
 	cbuuids := []cbgo.UUID{}
 
 	s.device.prph.DiscoverCharacteristics(cbuuids, s.service)
@@ -142,7 +142,7 @@ func (s *DeviceService) DiscoverCharacteristics(uuids []UUID) ([]DeviceCharacter
 }
 
 // Small helper to create a DeviceCharacteristic object.
-func (s *DeviceService) makeCharacteristic(uuid UUID, dchar cbgo.Characteristic) DeviceCharacteristic {
+func (s DeviceService) makeCharacteristic(uuid UUID, dchar cbgo.Characteristic) DeviceCharacteristic {
 	char := DeviceCharacteristic{
 		deviceCharacteristic: &deviceCharacteristic{
 			uuidWrapper:    uuid,
@@ -163,16 +163,38 @@ type DeviceCharacteristic struct {
 type deviceCharacteristic struct {
 	uuidWrapper
 
-	service *DeviceService
+	service DeviceService
 
 	characteristic cbgo.Characteristic
 	callback       func(buf []byte)
 	readChan       chan error
+	writeChan      chan error
 }
 
 // UUID returns the UUID for this DeviceCharacteristic.
-func (c *DeviceCharacteristic) UUID() UUID {
+func (c DeviceCharacteristic) UUID() UUID {
 	return c.uuidWrapper
+}
+
+// Write replaces the characteristic value with a new value. The
+// call will return after all data has been written.
+func (c DeviceCharacteristic) Write(p []byte) (n int, err error) {
+	c.writeChan = make(chan error)
+	c.service.device.prph.WriteCharacteristic(p, c.characteristic, true)
+
+	// wait for result
+	select {
+	case <-time.NewTimer(10 * time.Second).C:
+		err = errors.New("timeout on Write()")
+	case err = <-c.writeChan:
+	}
+
+	c.writeChan = nil
+	if err != nil {
+		return 0, err
+	}
+
+	return len(p), nil
 }
 
 // WriteWithoutResponse replaces the characteristic value with a new value. The

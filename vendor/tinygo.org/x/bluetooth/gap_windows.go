@@ -68,18 +68,25 @@ func (a *Adapter) Scan(callback func(*Adapter, ScanResult)) (err error) {
 	// Wait for when advertisement has stopped by a call to StopScan().
 	// Advertisement doesn't seem to stop right away, there is an
 	// intermediate Stopping state.
-	stoppingChan := make(chan struct{})
+	stoppingChan := make(chan error)
 	// TypedEventHandler<BluetoothLEAdvertisementWatcher, BluetoothLEAdvertisementWatcherStoppedEventArgs>
 	eventStoppedGuid := winrt.ParameterizedInstanceGUID(
 		foundation.GUIDTypedEventHandler,
 		advertisement.SignatureBluetoothLEAdvertisementWatcher,
 		advertisement.SignatureBluetoothLEAdvertisementWatcherStoppedEventArgs,
 	)
-	stoppedHandler := foundation.NewTypedEventHandler(ole.NewGUID(eventStoppedGuid), func(_ *foundation.TypedEventHandler, _, _ unsafe.Pointer) {
-		// Note: the args parameter has an Error property that should
-		// probably be checked, but I'm not sure when stopping the
-		// advertisement watcher could ever result in an error (except
-		// for bugs).
+	stoppedHandler := foundation.NewTypedEventHandler(ole.NewGUID(eventStoppedGuid), func(_ *foundation.TypedEventHandler, _, arg unsafe.Pointer) {
+		args := (*advertisement.BluetoothLEAdvertisementWatcherStoppedEventArgs)(arg)
+		errCode, err := args.GetError()
+		if err != nil {
+			// Got an error while getting the error value, that shouldn't
+			// happen.
+			stoppingChan <- fmt.Errorf("failed to get stopping error value: %w", err)
+		} else if errCode != bluetooth.BluetoothErrorSuccess {
+			// Could not stop the scan? I'm not sure when this would actually
+			// happen.
+			stoppingChan <- fmt.Errorf("failed to stop scanning (error code %d)", errCode)
+		}
 		close(stoppingChan)
 	})
 	defer stoppedHandler.Release()
@@ -96,8 +103,7 @@ func (a *Adapter) Scan(callback func(*Adapter, ScanResult)) (err error) {
 	}
 
 	// Wait until advertisement has stopped, and finish.
-	<-stoppingChan
-	return nil
+	return <-stoppingChan
 }
 
 func getScanResultFromArgs(args *advertisement.BluetoothLEAdvertisementReceivedEventArgs) ScanResult {
@@ -114,7 +120,7 @@ func getScanResultFromArgs(args *advertisement.BluetoothLEAdvertisementReceivedE
 		Address: adr,
 	}
 
-	var manufacturerData map[uint16][]byte = make(map[uint16][]byte)
+	var manufacturerData []ManufacturerDataElement
 	if winAdv, err := args.GetAdvertisement(); err == nil && winAdv != nil {
 		vector, _ := winAdv.GetManufacturerData()
 		size, _ := vector.GetSize()
@@ -123,7 +129,10 @@ func getScanResultFromArgs(args *advertisement.BluetoothLEAdvertisementReceivedE
 			manData := (*advertisement.BluetoothLEManufacturerData)(element)
 			companyID, _ := manData.GetCompanyId()
 			buffer, _ := manData.GetData()
-			manufacturerData[companyID] = bufferToSlice(buffer)
+			manufacturerData = append(manufacturerData, ManufacturerDataElement{
+				CompanyID: companyID,
+				Data:      bufferToSlice(buffer),
+			})
 		}
 	}
 
@@ -141,7 +150,7 @@ func getScanResultFromArgs(args *advertisement.BluetoothLEAdvertisementReceivedE
 }
 
 func bufferToSlice(buffer *streams.IBuffer) []byte {
-	dataReader, _ := streams.FromBuffer(buffer)
+	dataReader, _ := streams.DataReaderFromBuffer(buffer)
 	defer dataReader.Release()
 	bufferSize, _ := buffer.GetLength()
 	if bufferSize == 0 {
@@ -170,32 +179,32 @@ type Device struct {
 // Connect starts a connection attempt to the given peripheral device address.
 //
 // On Linux and Windows, the IsRandom part of the address is ignored.
-func (a *Adapter) Connect(address Address, params ConnectionParams) (*Device, error) {
+func (a *Adapter) Connect(address Address, params ConnectionParams) (Device, error) {
 	var winAddr uint64
 	for i := range address.MAC {
 		winAddr += uint64(address.MAC[i]) << (8 * i)
 	}
 
 	// IAsyncOperation<BluetoothLEDevice>
-	bleDeviceOp, err := bluetooth.FromBluetoothAddressAsync(winAddr)
+	bleDeviceOp, err := bluetooth.BluetoothLEDeviceFromBluetoothAddressAsync(winAddr)
 	if err != nil {
-		return nil, err
+		return Device{}, err
 	}
 
 	// We need to pass the signature of the parameter returned by the async operation:
 	// IAsyncOperation<BluetoothLEDevice>
 	if err := awaitAsyncOperation(bleDeviceOp, bluetooth.SignatureBluetoothLEDevice); err != nil {
-		return nil, fmt.Errorf("error connecting to device: %w", err)
+		return Device{}, fmt.Errorf("error connecting to device: %w", err)
 	}
 
 	res, err := bleDeviceOp.GetResults()
 	if err != nil {
-		return nil, err
+		return Device{}, err
 	}
 
 	// The returned BluetoothLEDevice is set to null if FromBluetoothAddressAsync can't find the device identified by bluetoothAddress
 	if uintptr(res) == 0x0 {
-		return nil, fmt.Errorf("device with the given address was not found")
+		return Device{}, fmt.Errorf("device with the given address was not found")
 	}
 
 	bleDevice := (*bluetooth.BluetoothLEDevice)(res)
@@ -204,37 +213,37 @@ func (a *Adapter) Connect(address Address, params ConnectionParams) (*Device, er
 	// To initiate a connection, we need to set GattSession.MaintainConnection to true.
 	dID, err := bleDevice.GetBluetoothDeviceId()
 	if err != nil {
-		return nil, err
+		return Device{}, err
 	}
 
 	// Windows does not support explicitly connecting to a device.
 	// Instead it has the concept of a GATT session that is owned
 	// by the calling program.
-	gattSessionOp, err := genericattributeprofile.FromDeviceIdAsync(dID) // IAsyncOperation<GattSession>
+	gattSessionOp, err := genericattributeprofile.GattSessionFromDeviceIdAsync(dID) // IAsyncOperation<GattSession>
 	if err != nil {
-		return nil, err
+		return Device{}, err
 	}
 
 	if err := awaitAsyncOperation(gattSessionOp, genericattributeprofile.SignatureGattSession); err != nil {
-		return nil, fmt.Errorf("error getting gatt session: %w", err)
+		return Device{}, fmt.Errorf("error getting gatt session: %w", err)
 	}
 
 	gattRes, err := gattSessionOp.GetResults()
 	if err != nil {
-		return nil, err
+		return Device{}, err
 	}
 	newSession := (*genericattributeprofile.GattSession)(gattRes)
 	// This keeps the device connected until we set maintain_connection = False.
 	if err := newSession.SetMaintainConnection(true); err != nil {
-		return nil, err
+		return Device{}, err
 	}
 
-	return &Device{bleDevice, newSession}, nil
+	return Device{bleDevice, newSession}, nil
 }
 
 // Disconnect from the BLE device. This method is non-blocking and does not
 // wait until the connection is fully gone.
-func (d *Device) Disconnect() error {
+func (d Device) Disconnect() error {
 	defer d.device.Release()
 	defer d.session.Release()
 
@@ -245,5 +254,17 @@ func (d *Device) Disconnect() error {
 		return err
 	}
 
+	return nil
+}
+
+// RequestConnectionParams requests a different connection latency and timeout
+// of the given device connection. Fields that are unset will be left alone.
+// Whether or not the device will actually honor this, depends on the device and
+// on the specific parameters.
+//
+// On Windows, this call doesn't do anything.
+func (d Device) RequestConnectionParams(params ConnectionParams) error {
+	// TODO: implement this using
+	// BluetoothLEDevice.RequestPreferredConnectionParameters.
 	return nil
 }

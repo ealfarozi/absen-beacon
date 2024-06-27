@@ -8,7 +8,7 @@ Go Bluetooth is a cross-platform package for using [Bluetooth Low Energy](https:
 
 It works on typical operating systems such as [Linux](#linux), [macOS](#macos), and [Windows](#windows). 
 
-It can also be used running "bare metal" on microcontrollers produced by [Nordic Semiconductor](https://www.nordicsemi.com/) by using [TinyGo](https://tinygo.org/).
+It can also be used running "bare metal" on microcontrollers produced by [Nordic Semiconductor](https://www.nordicsemi.com/) or using the Bluetooth Host Controller Interface (HCI) by using [TinyGo](https://tinygo.org/).
 
 The Go Bluetooth package can be used to create both Bluetooth Low Energy Centrals as well as to create Bluetooth Low Energy Peripherals.
 
@@ -92,21 +92,21 @@ func must(action string, err error) {
 
 ## Current support
 
-|                                  | Linux              | macOS              | Windows            | Nordic Semi        |
-| -------------------------------- | ------------------ | ------------------ | ------------------ | ------------------ |
-| API used                         | BlueZ              | CoreBluetooth      | WinRT              | SoftDevice         |
-| Scanning                         | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
-| Connect to peripheral            | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
-| Write peripheral characteristics | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
-| Receive notifications            | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
-| Advertisement                    | :heavy_check_mark: | :x:                | :x:                | :heavy_check_mark: |
-| Local services                   | :heavy_check_mark: | :x:                | :x:                | :heavy_check_mark: |
-| Local characteristics            | :heavy_check_mark: | :x:                | :x:                | :heavy_check_mark: |
-| Send notifications               | :heavy_check_mark: | :x:                | :x:                | :heavy_check_mark: |
+|                                  | Linux              | macOS              | Windows            | Nordic Semi        | ESP32 (NINA-FW)        |
+| -------------------------------- | ------------------ | ------------------ | ------------------ | ------------------ | ------------------ |
+| API used                         | BlueZ              | CoreBluetooth      | WinRT              | SoftDevice         | HCI         	|
+| Scanning                         | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Connect to peripheral            | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Write peripheral characteristics | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Receive notifications            | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Advertisement                    | :heavy_check_mark: | :x:                | :x:                | :heavy_check_mark: | :heavy_check_mark: |
+| Local services                   | :heavy_check_mark: | :x:                | :x:                | :heavy_check_mark: | :heavy_check_mark: |
+| Local characteristics            | :heavy_check_mark: | :x:                | :x:                | :heavy_check_mark: | :heavy_check_mark: |
+| Send notifications               | :heavy_check_mark: | :x:                | :x:                | :heavy_check_mark: | :heavy_check_mark: |
 
 ## Linux
 
-Go Bluetooth support for Linux uses [BlueZ](http://www.bluez.org/) via the [D-Bus](https://en.wikipedia.org/wiki/D-Bus) interface thanks to the https://github.com/muka/go-bluetooth package. This should work with most distros that support BlueZ such as Ubuntu, Debian, Fedora, and Arch Linux, among others. 
+Go Bluetooth support for Linux uses [BlueZ](http://www.bluez.org/) via the [D-Bus](https://en.wikipedia.org/wiki/D-Bus) interface. This should work with most distros that support BlueZ such as Ubuntu, Debian, Fedora, and Arch Linux, among others.
 
 Linux can be used both as a BLE Central or as a BLE Peripheral.
 
@@ -263,6 +263,28 @@ After that, don't reset the board but instead flash a new program to it. For exa
     tinygo flash -target=pca10040-s132v6 ./examples/heartrate
 
 Flashing will normally reset the board.
+
+## ESP32 (NINA)
+
+Go Bluetooth has bare metal support for boards that include a separate ESP32 Bluetooth Low Energy radio co-processor. The ESP32 must be running the Arduino or Adafruit `nina_fw` firmware.
+
+Several boards created by Adafruit and Arduino already have the `nina-fw` firmware pre-loaded. This means you can use TinyGo and the Go Bluetooth package without any additional steps required.
+
+Currently supported boards include:
+
+* [Adafruit Metro M4 AirLift](https://www.adafruit.com/product/4000)
+* [Adafruit PyBadge](https://www.adafruit.com/product/4200) with [AirLift WiFi FeatherWing](https://www.adafruit.com/product/4264)
+* [Adafruit PyPortal](https://www.adafruit.com/product/4116)
+* [Arduino Nano 33 IoT](https://docs.arduino.cc/hardware/nano-33-iot)
+* [Arduino Nano RP2040 Connect](https://docs.arduino.cc/hardware/nano-rp2040-connect)
+
+After you have installed TinyGo and the Go Bluetooth package, you should be able to compile/run code for your device.
+
+For example, this command can be used to compile and flash an Arduino Nano RP2040 Connect board with the example we provide that turns it into a BLE peripheral to act like a heart rate monitor:
+
+	tinygo flash -target nano-rp2040 ./examples/heartrate
+
+If you want more information about the `nina-fw` firmware, or want to add support for other ESP32-equipped boards, please see https://github.com/arduino/nina-fw
 
 ## API stability
 
