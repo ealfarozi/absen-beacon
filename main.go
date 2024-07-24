@@ -113,8 +113,9 @@ func hitBeaconAPI(data string) bool {
 		}
 	*/
 
-	maxRetries := 10
-	for i := 0; i < maxRetries; i++ {
+	//maxRetries := 10
+	//for i := 0; i < maxRetries; i++ {
+	for {
 		_, resp, body, err := common.HitAPI(url, br, "POST", strToken, time.Duration(120))
 		fmt.Println("[Hit BeaconRequest]:", resp)
 		if err != nil {
@@ -125,10 +126,10 @@ func hitBeaconAPI(data string) bool {
 			fmt.Println("[Error Hit BeaconRequest]:", body)
 		}
 
-		if i < maxRetries-1 {
-			fmt.Println("Retrying...")
-			time.Sleep(2 * time.Second)
-		}
+		//if i < maxRetries-1 {
+		fmt.Println("Retrying...")
+		time.Sleep(2 * time.Second)
+		//}
 	}
 
 	return true
