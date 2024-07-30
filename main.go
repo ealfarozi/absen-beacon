@@ -7,6 +7,7 @@ import (
 
 	"github.com/ealfarozi/absen-beacon/common"
 	"tinygo.org/x/bluetooth"
+	"tinygo.org/x/drivers/uart"
 )
 
 var adapter = bluetooth.DefaultAdapter
@@ -32,15 +33,20 @@ func run() {
 	must("enable BLE stack", adapter.Enable())
 	common.GetHash()
 
+	// Initialize UART for AT commands
+	uart := uart.New(uart.DefaultUART)
+	uart.Configure(uart.Config{BaudRate: 9600})
+
+	// Send AT command to set transmit power (example command, depends on your module)
+	sendATCommand(uart, "AT+TXPWR=2")
+
 	//musti bikin retry
 	hitBeaconAPI(common.HASHED)
 
 	adv := adapter.DefaultAdvertisement()
 
-	// Assume `TransmitPower` can be set within `AdvertisementOptions`
 	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{
-		LocalName:     common.LOCAL_NAME + "|" + common.UUID + "|" + common.HASHED,
-		TransmitPower: -20, // Adjust power level as needed
+		LocalName: common.LOCAL_NAME + "|" + common.UUID + "|" + common.HASHED,
 	}))
 	must("start adv", adv.Start())
 	println("start advertising...")
@@ -59,15 +65,20 @@ func runStatic() {
 	must("enable BLE stack", adapter.Enable())
 	common.GetHash()
 
+	// Initialize UART for AT commands
+	uart := uart.New(uart.DefaultUART)
+	uart.Configure(uart.Config{BaudRate: 9600})
+
+	// Send AT command to set transmit power (example command, depends on your module)
+	sendATCommand(uart, "AT+TXPWR=2")
+
 	//musti bikin retry
 	hitBeaconAPI(common.HASHED)
 
 	adv := adapter.DefaultAdvertisement()
 
-	// Assume `TransmitPower` can be set within `AdvertisementOptions`
 	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{
-		LocalName:     common.LOCAL_NAME + "|" + common.UUID + "|" + common.HASHED,
-		TransmitPower: -20, // Adjust power level as needed
+		LocalName: common.LOCAL_NAME + "|" + common.UUID + "|" + common.HASHED,
 	}))
 	must("start adv", adv.Start())
 
@@ -84,6 +95,14 @@ func must(action string, err error) {
 	if err != nil {
 		panic("failed to " + action + ": " + err.Error())
 	}
+}
+
+func sendATCommand(uart *uart.UART, cmd string) {
+	uart.Write([]byte(cmd + "\r\n"))
+	time.Sleep(100 * time.Millisecond) // Adjust delay as needed
+	buf := make([]byte, 64)
+	n, _ := uart.Read(buf)
+	fmt.Printf("AT response: %s\n", string(buf[:n]))
 }
 
 func hitBeaconAPI(data string) bool {
