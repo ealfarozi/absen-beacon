@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"machine"
-
 	"github.com/ealfarozi/absen-beacon/common"
 	"tinygo.org/x/bluetooth"
 )
@@ -34,13 +32,6 @@ func run() {
 	must("enable BLE stack", adapter.Enable())
 	common.GetHash()
 
-	// Initialize UART for AT commands
-	uart := machine.UART0
-	uart.Configure(machine.UARTConfig{BaudRate: 9600})
-
-	// Send AT command to set transmit power (example command, depends on your module)
-	sendATCommand(uart, "AT+TXPWR=2")
-
 	//musti bikin retry
 	hitBeaconAPI(common.HASHED)
 
@@ -66,13 +57,6 @@ func runStatic() {
 	must("enable BLE stack", adapter.Enable())
 	common.GetHash()
 
-	// Initialize UART for AT commands
-	uart := machine.UART0
-	uart.Configure(machine.UARTConfig{BaudRate: 9600})
-
-	// Send AT command to set transmit power (example command, depends on your module)
-	sendATCommand(uart, "AT+TXPWR=2")
-
 	//musti bikin retry
 	hitBeaconAPI(common.HASHED)
 
@@ -96,14 +80,6 @@ func must(action string, err error) {
 	if err != nil {
 		panic("failed to " + action + ": " + err.Error())
 	}
-}
-
-func sendATCommand(uart machine.UART, cmd string) {
-	uart.Write([]byte(cmd + "\r\n"))
-	time.Sleep(100 * time.Millisecond) // Adjust delay as needed
-	buf := make([]byte, 64)
-	n, _ := uart.Read(buf)
-	fmt.Printf("AT response: %s\n", string(buf[:n]))
 }
 
 func hitBeaconAPI(data string) bool {
