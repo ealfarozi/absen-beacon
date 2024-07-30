@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"machine"
+
 	"github.com/ealfarozi/absen-beacon/common"
 	"tinygo.org/x/bluetooth"
-	"tinygo.org/x/drivers/uart"
 )
 
 var adapter = bluetooth.DefaultAdapter
@@ -34,8 +35,8 @@ func run() {
 	common.GetHash()
 
 	// Initialize UART for AT commands
-	uart := uart.New(uart.DefaultUART)
-	uart.Configure(uart.Config{BaudRate: 9600})
+	uart := machine.UART0
+	uart.Configure(machine.UARTConfig{BaudRate: 9600})
 
 	// Send AT command to set transmit power (example command, depends on your module)
 	sendATCommand(uart, "AT+TXPWR=2")
@@ -66,8 +67,8 @@ func runStatic() {
 	common.GetHash()
 
 	// Initialize UART for AT commands
-	uart := uart.New(uart.DefaultUART)
-	uart.Configure(uart.Config{BaudRate: 9600})
+	uart := machine.UART0
+	uart.Configure(machine.UARTConfig{BaudRate: 9600})
 
 	// Send AT command to set transmit power (example command, depends on your module)
 	sendATCommand(uart, "AT+TXPWR=2")
@@ -97,7 +98,7 @@ func must(action string, err error) {
 	}
 }
 
-func sendATCommand(uart *uart.UART, cmd string) {
+func sendATCommand(uart machine.UART, cmd string) {
 	uart.Write([]byte(cmd + "\r\n"))
 	time.Sleep(100 * time.Millisecond) // Adjust delay as needed
 	buf := make([]byte, 64)
