@@ -37,12 +37,10 @@ func run() {
 
 	adv := adapter.DefaultAdvertisement()
 
-	// Set transmit power to a lower level to reduce range
-	// Assume SetTxPower is available; replace with actual function as needed
-	adv.SetTxPower(-20) // Adjust power level as needed
-
+	// Assume `TransmitPower` can be set within `AdvertisementOptions`
 	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{
-		LocalName: common.LOCAL_NAME + "|" + common.UUID + "|" + common.HASHED,
+		LocalName:     common.LOCAL_NAME + "|" + common.UUID + "|" + common.HASHED,
+		TransmitPower: -20, // Adjust power level as needed
 	}))
 	must("start adv", adv.Start())
 	println("start advertising...")
@@ -66,12 +64,10 @@ func runStatic() {
 
 	adv := adapter.DefaultAdvertisement()
 
-	// Set transmit power to a lower level to reduce range
-	// Assume SetTxPower is available; replace with actual function as needed
-	adv.SetTxPower(-20) // Adjust power level as needed
-
+	// Assume `TransmitPower` can be set within `AdvertisementOptions`
 	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{
-		LocalName: common.LOCAL_NAME + "|" + common.UUID + "|" + common.HASHED,
+		LocalName:     common.LOCAL_NAME + "|" + common.UUID + "|" + common.HASHED,
+		TransmitPower: -20, // Adjust power level as needed
 	}))
 	must("start adv", adv.Start())
 
